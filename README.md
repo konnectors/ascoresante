@@ -11,7 +11,7 @@ What's Cozy?
 What is this konnector about ?
 ------------------------------
 
-This konnector retrieves your bills from Ascore Santé Prévoyance
+This konnector retrieves your bills from Ascore Santé Prévoyance.
 
 ### Open a Pull-Request
 
@@ -44,7 +44,7 @@ This connector uses [cozy-konnector-libs](https://github.com/cozy/cozy-konnector
 
 ### Maintainer
 
-The lead maintainers for this konnector is [dohseven](https://framagit.org/dohseven)
+The lead maintainers for this konnector is [dohseven](https://github.com/dohseven)
 
 
 ### Get in touch
@@ -61,7 +61,7 @@ You can reach the Cozy Community by:
 License
 -------
 
-cozy_konnector-ascoresante is developed by dohseven and distributed under the [AGPL v3 license][agpl-3.0].
+cozy-konnector-ascoresante is developed by dohseven and distributed under the [AGPL v3 license][agpl-3.0].
 
 [cozy]: https://cozy.io "Cozy Cloud"
 [agpl-3.0]: https://www.gnu.org/licenses/agpl-3.0.html
