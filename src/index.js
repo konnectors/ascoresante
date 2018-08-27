@@ -58,6 +58,7 @@ async function start(fields) {
       const doc = {
         title: reimbursement.sin_typeremboursement,
         amount: normalizePrice(reimbursement.remboursement),
+        isRefund: true,
         fileurl: documentsUrl + '/' + reimbursement.sin_num,
         filename: reimbursement.sin_num + '.pdf',
         date: normalizeDate(reimbursement.sin_date_remboursement),
