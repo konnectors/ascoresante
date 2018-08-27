@@ -107,7 +107,7 @@ function authenticate(identifiant_auth, mdp_auth) {
 // This function retrieves all the years available for the user by parsing
 // an HTML page wrapped by a cheerio instance and returns an array of years.
 function parseYears($) {
-  // You can find documentation about the scrape function here :
+  // You can find documentation about the scrape function here:
   // https://github.com/konnectors/libs/blob/master/packages/cozy-konnector-libs/docs/api.md#scrape
   const years = scrape(
     $,
