@@ -1,5 +1,5 @@
 {
-  "version": "1.2.0",
+  "version": "1.1.0",
   "name": "Ascore Santé Prévoyance",
   "type": "konnector",
   "language": "node",
@@ -8,9 +8,7 @@
   "source": "git://github.com/konnectors/ascoresante.git",
   "editor": "dohseven",
   "vendor_link": "https://ascoregestion.com/",
-  "categories": [
-    "insurance"
-  ],
+  "categories": ["insurance"],
   "fields": {
     "login": {
       "type": "text",
@@ -43,18 +41,13 @@
     },
     "accounts": {
       "type": "io.cozy.accounts",
-      "verbs": [
-        "GET"
-      ]
+      "verbs": ["GET"]
     }
   },
   "developer": {
     "name": "dohseven"
   },
-  "langs": [
-    "fr",
-    "en"
-  ],
+  "langs": ["fr", "en"],
   "locales": {
     "fr": {
       "short_description": "Connecteur pour Ascore Santé Prévoyance",
