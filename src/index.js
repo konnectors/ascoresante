@@ -72,7 +72,10 @@ async function start(fields) {
           version: 1
         }
       }
-      documents.push(doc)
+      const fileExists = await checkUrl(doc.fileurl)
+      if (fileExists) {
+        documents.push(doc)
+      }
     }
   }
 
@@ -140,4 +143,22 @@ function normalizeDate(date) {
 function normalizeFileName(fileNum, date) {
   // String format: dd/mm/yyyy
   return date.slice(6, 10) + date.slice(3, 5) + date.slice(0, 2) + '_' + fileNum + '.pdf'
+}
+
+async function checkUrl(url) {
+  const pdf = await request(url)
+  const notFound = scrape(
+    pdf('.col-md-12'),
+    {
+      text: {
+        sel: 'p'
+      }
+    }
+  )
+  if (notFound.text === 'Fichier non trouvé.') {
+    log('warn', 'File not found at URL ' + url)
+    return false
+  }
+
+  return true
 }
