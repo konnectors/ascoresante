@@ -60,7 +60,7 @@ async function start(fields) {
         amount: normalizePrice(reimbursement.remboursement),
         isRefund: true,
         fileurl: documentsUrl + '/' + reimbursement.sin_num,
-        filename: reimbursement.sin_num + '.pdf',
+        filename: normalizeFileName(reimbursement.sin_num, reimbursement.sin_date_remboursement),
         date: normalizeDate(reimbursement.sin_date_remboursement),
         currency: '€',
         vendor: 'ascoreSante',
@@ -134,4 +134,10 @@ function normalizeDate(date) {
   return new Date(
     date.slice(6, 10) + '-' + date.slice(3, 5) + '-' + date.slice(0, 2) + 'Z'
   )
+}
+
+// Create the file name, as YYYYMMDD_fileNum.pdf
+function normalizeFileName(fileNum, date) {
+  // String format: dd/mm/yyyy
+  return date.slice(6, 10) + date.slice(3, 5) + date.slice(0, 2) + '_' + fileNum + '.pdf'
 }
