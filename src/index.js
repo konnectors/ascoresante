@@ -60,7 +60,7 @@ async function start(fields) {
         amount: normalizePrice(reimbursement.remboursement),
         isRefund: true,
         fileurl: documentsUrl + '/' + reimbursement.sin_num,
-        filename: reimbursement.sin_num + '.pdf',
+        filename: normalizeFileName(reimbursement.sin_num, reimbursement.sin_date_remboursement),
         date: normalizeDate(reimbursement.sin_date_remboursement),
         currency: '€',
         vendor: 'ascoreSante',
@@ -72,7 +72,10 @@ async function start(fields) {
           version: 1
         }
       }
-      documents.push(doc)
+      const fileExists = await checkUrl(doc.fileurl)
+      if (fileExists) {
+        documents.push(doc)
+      }
     }
   }
 
@@ -134,4 +137,28 @@ function normalizeDate(date) {
   return new Date(
     date.slice(6, 10) + '-' + date.slice(3, 5) + '-' + date.slice(0, 2) + 'Z'
   )
+}
+
+// Create the file name, as YYYYMMDD_fileNum.pdf
+function normalizeFileName(fileNum, date) {
+  // String format: dd/mm/yyyy
+  return date.slice(6, 10) + date.slice(3, 5) + date.slice(0, 2) + '_' + fileNum + '.pdf'
+}
+
+async function checkUrl(url) {
+  const pdf = await request(url)
+  const notFound = scrape(
+    pdf('.col-md-12'),
+    {
+      text: {
+        sel: 'p'
+      }
+    }
+  )
+  if (notFound.text === 'Fichier non trouvé.') {
+    log('warn', 'File not found at URL ' + url)
+    return false
+  }
+
+  return true
 }
