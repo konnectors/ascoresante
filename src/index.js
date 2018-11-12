@@ -23,6 +23,7 @@ const baseUrl = 'https://ascoregestion.com'
 const decomptesUrl = `${baseUrl}/adh-s-mes-decomptes`
 const decomptesFiltreUrl = `${baseUrl}/adh-s-mes-decomptes-filtre`
 const documentsUrl = `${baseUrl}/adherent/decompte/pdf`
+const deccompteDetailUrl = `${baseUrl}/adh-s-pop-decompte-total`
 
 module.exports = new BaseKonnector(start)
 
@@ -55,12 +56,21 @@ async function start(fields) {
     // The POST response contains an array of JSON objects
     for (let reimbursement of page._root.children) {
       // Each JSON objects contains data to create a new document to save
+      // First, retrieve the total amount, and the parts reimbursed by the SS and Ascore
+      const amounts = await getAmounts(reimbursement.sin_num)
+      // Then create the new document with all data
       const doc = {
         title: reimbursement.sin_typeremboursement,
-        amount: normalizePrice(reimbursement.remboursement),
+        amount: amounts.ascore,
+        originalAmount: amounts.total,
+        groupAmount: amounts.total,
+        socialSecurityRefund: amounts.ss,
         isRefund: true,
         fileurl: documentsUrl + '/' + reimbursement.sin_num,
-        filename: normalizeFileName(reimbursement.sin_num, reimbursement.sin_date_remboursement),
+        filename: normalizeFileName(
+          reimbursement.sin_num,
+          reimbursement.sin_date_remboursement
+        ),
         date: normalizeDate(reimbursement.sin_date_remboursement),
         currency: '€',
         vendor: 'ascoreSante',
@@ -142,23 +152,45 @@ function normalizeDate(date) {
 // Create the file name, as YYYYMMDD_fileNum.pdf
 function normalizeFileName(fileNum, date) {
   // String format: dd/mm/yyyy
-  return date.slice(6, 10) + date.slice(3, 5) + date.slice(0, 2) + '_' + fileNum + '.pdf'
+  return (
+    date.slice(6, 10) +
+    date.slice(3, 5) +
+    date.slice(0, 2) +
+    '_' +
+    fileNum +
+    '.pdf'
+  )
 }
 
 async function checkUrl(url) {
   const pdf = await request(url)
-  const notFound = scrape(
-    pdf('.col-md-12'),
-    {
-      text: {
-        sel: 'p'
-      }
+  const notFound = scrape(pdf('.col-md-12'), {
+    text: {
+      sel: 'p'
     }
-  )
+  })
   if (notFound.text === 'Fichier non trouvé.') {
     log('warn', 'File not found at URL ' + url)
     return false
   }
 
   return true
+}
+
+async function getAmounts(number) {
+  const decompteDoc = await request(`${deccompteDetailUrl}/${number}`)
+  return scrape(decompteDoc('body>#global>table>tbody'), {
+    ascore: {
+      sel: 'tr:nth-child(2)>td:last-child',
+      parse: normalizePrice
+    },
+    ss: {
+      sel: 'tr:nth-child(3)>td:last-child',
+      parse: normalizePrice
+    },
+    total: {
+      sel: 'tr:nth-child(4)>td:last-child',
+      parse: normalizePrice
+    }
+  })
 }
