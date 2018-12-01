@@ -23,7 +23,7 @@ const baseUrl = 'https://ascoregestion.com'
 const decomptesUrl = `${baseUrl}/adh-s-mes-decomptes`
 const decomptesFiltreUrl = `${baseUrl}/adh-s-mes-decomptes-filtre`
 const documentsUrl = `${baseUrl}/adherent/decompte/pdf`
-const deccompteDetailUrl = `${baseUrl}/adh-s-pop-decompte-total`
+const decompteDetailUrl = `${baseUrl}/adh-s-mes-decomptes-details`
 
 module.exports = new BaseKonnector(start)
 
@@ -55,36 +55,63 @@ async function start(fields) {
     log('info', 'Parsing list of documents for year ' + year.value)
     // The POST response contains an array of JSON objects
     for (let reimbursement of page._root.children) {
-      // Each JSON objects contains data to create a new document to save
-      // First, retrieve the total amount, and the parts reimbursed by the SS and Ascore
-      const amounts = await getAmounts(reimbursement.sin_num)
-      // Then create the new document with all data
-      const doc = {
-        title: reimbursement.sin_typeremboursement,
-        amount: amounts.ascore,
-        originalAmount: amounts.total,
-        groupAmount: amounts.total,
-        socialSecurityRefund: amounts.ss,
-        isRefund: true,
-        fileurl: documentsUrl + '/' + reimbursement.sin_num,
-        filename: normalizeFileName(
-          reimbursement.sin_num,
-          reimbursement.sin_date_remboursement
-        ),
-        date: normalizeDate(reimbursement.sin_date_remboursement),
-        currency: '€',
-        vendor: 'ascoreSante',
-        metadata: {
-          // It can be interesting that we add the date of import. This is not mandatory but may be
-          // usefull for debugging or data migration
-          importDate: new Date(),
-          // Document version, useful for migration after change of document structure
-          version: 1
-        }
-      }
-      const fileExists = await checkUrl(doc.fileurl)
+      // First get details for each reimbursement, i.e. each JSON object
+      const detailsPage = await request(
+        `${decompteDetailUrl}/${reimbursement.sin_num}`
+      )
+      const detailsData = scrape(
+        detailsPage,
+        {
+          originalAmount: {
+            sel: 'td:nth-child(3)',
+            parse: normalizePrice
+          },
+          ssAmount: {
+            sel: 'td:nth-child(5)',
+            parse: normalizePrice
+          },
+          ascoreAmount: {
+            sel: 'td:nth-child(7)',
+            parse: normalizePrice
+          }
+        },
+        '.tabloDecomptesDetails>tbody>tr:not(:nth-child(1)):not(:nth-child(2))'
+      )
+
+      // Check if document really exists before adding it to the list
+      const fileUrl = documentsUrl + '/' + reimbursement.sin_num
+      const fileExists = await checkUrl(fileUrl)
       if (fileExists) {
-        documents.push(doc)
+        // Create a bill for each elementary medical act
+        for (let amounts of detailsData) {
+          // Then create the new document with all data,
+          // cf. bill doctype: https://github.com/cozy/cozy-doctypes/blob/master/docs/io.cozy.bills.md
+          const doc = {
+            title: reimbursement.sin_typeremboursement,
+            amount: amounts.ascoreAmount,
+            originalAmount: amounts.originalAmount,
+            groupAmount: normalizePrice(reimbursement.remboursement),
+            socialSecurityRefund: amounts.ssAmount,
+            isRefund: true,
+            fileurl: fileUrl,
+            filename: normalizeFileName(
+              reimbursement.sin_num,
+              reimbursement.sin_date_remboursement
+            ),
+            date: normalizeDate(reimbursement.sin_date_remboursement),
+            currency: '€',
+            vendor: 'ascoreSante',
+            type: 'health_costs',
+            metadata: {
+              // It can be interesting that we add the date of import. This is not mandatory but may be
+              // useful for debugging or data migration
+              importDate: new Date(),
+              // Document version, useful for migration after change of document structure
+              version: 1
+            }
+          }
+          documents.push(doc)
+        }
       }
     }
   }
@@ -175,22 +202,4 @@ async function checkUrl(url) {
   }
 
   return true
-}
-
-async function getAmounts(number) {
-  const decompteDoc = await request(`${deccompteDetailUrl}/${number}`)
-  return scrape(decompteDoc('body>#global>table>tbody'), {
-    ascore: {
-      sel: 'tr:nth-child(2)>td:last-child',
-      parse: normalizePrice
-    },
-    ss: {
-      sel: 'tr:nth-child(3)>td:last-child',
-      parse: normalizePrice
-    },
-    total: {
-      sel: 'tr:nth-child(4)>td:last-child',
-      parse: normalizePrice
-    }
-  })
 }
