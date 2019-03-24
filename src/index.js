@@ -18,12 +18,10 @@ const request = requestFactory({
   // This allows request-promise to keep cookies between requests
   jar: true
 })
+const formatDate = require('date-fns/format')
 
-const baseUrl = 'https://ascoregestion.com'
-const decomptesUrl = `${baseUrl}/adh-s-mes-decomptes`
-const decomptesFiltreUrl = `${baseUrl}/adh-s-mes-decomptes-filtre`
-const documentsUrl = `${baseUrl}/adherent/decompte/pdf`
-const decompteDetailUrl = `${baseUrl}/adh-s-mes-decomptes-details`
+const baseUrl = 'https://ascoregestion.com/assure'
+const decomptesUrl = `${baseUrl}/remboursements`
 
 module.exports = new BaseKonnector(start)
 
@@ -34,90 +32,10 @@ async function start(fields) {
   log('info', 'Authenticating ...')
   await authenticate(fields.login, fields.password)
   log('info', 'Successfully logged in')
-  // The BaseKonnector instance expects a Promise as return of the function
-  log('info', 'Fetching the list of years')
-  const $ = await request(decomptesUrl)
-  log('info', 'Parsing list of years')
-  const documents = []
-  const years = await parseYears($)
-  for (let year of years) {
-    log('info', 'Fetching the list of documents for year ' + year.value)
-
-    const page = await request(decomptesFiltreUrl, {
-      method: 'POST',
-      form: {
-        annee: year.value,
-        mois: -1
-      },
-      json: true
-    })
-
-    log('info', 'Parsing list of documents for year ' + year.value)
-    // The POST response contains an array of JSON objects
-    for (let reimbursement of page._root.children) {
-      // First get details for each reimbursement, i.e. each JSON object
-      const detailsPage = await request(
-        `${decompteDetailUrl}/${reimbursement.sin_num}`
-      )
-      const detailsData = scrape(
-        detailsPage,
-        {
-          originalAmount: {
-            sel: 'td:nth-child(3)',
-            parse: normalizePrice
-          },
-          ssAmount: {
-            sel: 'td:nth-child(5)',
-            parse: normalizePrice
-          },
-          ascoreAmount: {
-            sel: 'td:nth-child(7)',
-            parse: normalizePrice
-          }
-        },
-        '.tabloDecomptesDetails>tbody>tr:not(:nth-child(1)):not(:nth-child(2))'
-      )
-
-      // Check if document really exists before adding it to the list
-      const fileUrl = documentsUrl + '/' + reimbursement.sin_num
-      const fileExists = await checkUrl(fileUrl)
-      if (fileExists) {
-        // Create a bill for each elementary medical act
-        for (let amounts of detailsData) {
-          // Then create the new document with all data,
-          // cf. bill doctype: https://github.com/cozy/cozy-doctypes/blob/master/docs/io.cozy.bills.md
-          const doc = {
-            title: reimbursement.sin_typeremboursement,
-            amount: amounts.ascoreAmount,
-            originalAmount: amounts.originalAmount,
-            groupAmount: normalizePrice(reimbursement.remboursement),
-            socialSecurityRefund: amounts.ssAmount,
-            isRefund: true,
-            fileurl: fileUrl,
-            filename: normalizeFileName(
-              reimbursement.sin_num,
-              reimbursement.sin_date_remboursement
-            ),
-            date: normalizeDate(reimbursement.sin_date_remboursement),
-            currency: '€',
-            vendor: 'ascoreSante',
-            type: 'health_costs',
-            metadata: {
-              // It can be interesting that we add the date of import. This is not mandatory but may be
-              // useful for debugging or data migration
-              importDate: new Date(),
-              // Document version, useful for migration after change of document structure
-              version: 1
-            }
-          }
-          documents.push(doc)
-        }
-      }
-    }
-  }
-
-  // Here we use the saveBills function even if what we fetch are not bills,
-  // but this is the most common case in connectors
+  log('info', 'Fetching the list of reimbursements')
+  const reimbursements = parseReimbursements(await request(decomptesUrl))
+  log('info', 'Fetching the reimbursements details')
+  const documents = await getReimbursementDetails(reimbursements)
   // Doc: https://github.com/konnectors/libs/blob/master/packages/cozy-konnector-libs/docs/api.md#savebills
   log('info', 'Saving data to Cozy')
   await saveBills(documents, fields.folderPath, {
@@ -129,14 +47,17 @@ async function start(fields) {
 }
 
 // Authentication using the [signin function](https://github.com/konnectors/libs/blob/master/packages/cozy-konnector-libs/docs/api.md#module_signin)
-function authenticate(identifiant_auth, mdp_auth) {
+function authenticate(login, password) {
   return signin({
-    url: `${baseUrl}/identification?type=cHJldmFzc3Vy`,
+    url: `${baseUrl}/connexion`,
     formSelector: 'form#form_auth',
-    formData: { identifiant_auth, mdp_auth },
-    // The validate function will check if a logout link exists
+    formData: {
+      login: login,
+      password: password
+    },
+    // The validate function will check if at least one logout link exists
     validate: (statusCode, $) => {
-      if ($(`a[href='/logout']`).length === 1) {
+      if ($(`a[href='${baseUrl}/logout']`).length >= 1) {
         return true
       } else {
         return false
@@ -145,22 +66,131 @@ function authenticate(identifiant_auth, mdp_auth) {
   })
 }
 
-// This function retrieves all the years available for the user by parsing
-// an HTML page wrapped by a cheerio instance and returns an array of years.
-function parseYears($) {
-  // You can find documentation about the scrape function here:
-  // https://github.com/konnectors/libs/blob/master/packages/cozy-konnector-libs/docs/api.md#scrape
-  const years = scrape(
-    $,
+// This function retrieves all the reimbursements for the user,
+// which are all present in the same HTML page.
+function parseReimbursements(page) {
+  const reimbursements = scrape(
+    page,
     {
-      value: {
-        attr: 'value'
+      // Watch out, there is a hidden column at the beginning!
+      date: {
+        sel: 'td:nth-child(2)',
+        parse: normalizeDate
+      },
+      number: {
+        sel: 'td:nth-child(3)'
+      },
+      amount: {
+        sel: 'td:nth-child(5)',
+        parse: normalizePrice
+      },
+      detailsUrl: {
+        sel: 'td:nth-child(8)>a',
+        attr: 'href'
       }
     },
-    '#annee>option'
+    'table#remboursements>tbody>tr'
   )
 
-  return years
+  log('debug', 'Reimbursements list')
+  log('debug', reimbursements)
+  return reimbursements
+}
+
+// This function parses a reimbursement detail page
+// and extracts all the necessary details.
+function parseDetails(page) {
+  // First retrieve the details of the medical treatment
+  let detailsData = scrape(
+    page,
+    {
+      treatmentDate: {
+        sel: 'td:nth-child(1)',
+        parse: normalizeDate
+      },
+      beneficiary: {
+        sel: 'td:nth-child(3)'
+      },
+      treatmentType: {
+        sel: 'td:nth-child(4)'
+      },
+      originalAmount: {
+        sel: 'td:nth-child(5)',
+        parse: normalizePrice
+      },
+      ascoreAmount: {
+        sel: 'td:nth-child(6)',
+        parse: normalizePrice
+      },
+      otherAmount: {
+        sel: 'td:nth-child(7)',
+        parse: normalizePrice
+      },
+      ssAmount: {
+        sel: 'td:nth-child(8)',
+        parse: normalizePrice
+      }
+    },
+    'table.table>tbody>tr:not(:last-child)'
+  )
+
+  // Then retrieve the URL of the PDF file
+  const pdf = scrape(page('div.row>div.col-sm-4'), {
+    fileUrl: {
+      sel: 'a',
+      attr: 'href'
+    }
+  })
+  detailsData.fileUrl = pdf.fileUrl
+
+  log('debug', 'Reimbursements details:')
+  log('debug', detailsData)
+  return detailsData
+}
+
+// This function returns a list of Cozy documents with all details,
+// ready to store
+async function getReimbursementDetails(reimbursements) {
+  const documents = []
+
+  for (let reimbursement of reimbursements) {
+    // First get details for each reimbursement
+    const detailsData = parseDetails(await request(reimbursement.detailsUrl))
+    // Then check if the document really exists before adding it to the list
+    if (await checkUrl(detailsData.fileUrl)) {
+      // Create a bill for each elementary medical act
+      for (let details of detailsData) {
+        // Then create the new document with all data,
+        // cf. bill doctype: https://github.com/cozy/cozy-doctypes/blob/master/docs/io.cozy.bills.md
+        const doc = {
+          title: details.treatmentType,
+          amount: details.ascoreAmount,
+          originalAmount: details.originalAmount,
+          groupAmount: reimbursement.amount,
+          socialSecurityRefund: details.ssAmount,
+          isRefund: true,
+          fileurl: detailsData.fileUrl,
+          filename: normalizeFileName(reimbursement.date, reimbursement.number),
+          date: reimbursement.date,
+          currency: '€',
+          vendor: 'ascoreSante',
+          type: 'health_costs',
+          metadata: {
+            // It can be interesting that we add the date of import. This is not mandatory but may be
+            // useful for debugging or data migration
+            importDate: new Date(),
+            // Document version, useful for migration after change of document structure
+            version: 1
+          }
+        }
+        documents.push(doc)
+      }
+    }
+  }
+
+  log('debug', 'Documents to save: ')
+  log('debug', documents)
+  return documents
 }
 
 // Convert a price string to a float
@@ -177,29 +207,16 @@ function normalizeDate(date) {
 }
 
 // Create the file name, as YYYYMMDD_fileNum.pdf
-function normalizeFileName(fileNum, date) {
-  // String format: dd/mm/yyyy
-  return (
-    date.slice(6, 10) +
-    date.slice(3, 5) +
-    date.slice(0, 2) +
-    '_' +
-    fileNum +
-    '.pdf'
-  )
+function normalizeFileName(date, fileNum) {
+  return formatDate(date, 'YYYYMMDD') + '_' + fileNum + '.pdf'
 }
 
 async function checkUrl(url) {
-  const pdf = await request(url)
-  const notFound = scrape(pdf('.col-md-12'), {
-    text: {
-      sel: 'p'
-    }
-  })
-  if (notFound.text === 'Fichier non trouvé.') {
-    log('warn', 'File not found at URL ' + url)
+  try {
+    await request(url)
+    return true
+  } catch (err) {
+    log('error', err.message)
     return false
   }
-
-  return true
 }
