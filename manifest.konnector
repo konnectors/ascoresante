@@ -1,9 +1,9 @@
 {
-  "version": "1.4.0",
+  "version": "1.3.1",
   "name": "Ascore Santé Prévoyance",
   "type": "konnector",
   "language": "node",
-  "icon": "icon.png",
+  "icon": "logo.png",
   "slug": "ascoresante",
   "source": "git@github.com:konnectors/ascoresante.git",
   "editor": "dohseven",
