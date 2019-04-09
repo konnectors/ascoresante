@@ -42,7 +42,8 @@ async function start(fields) {
     // This is a bank identifier which will be used to link bills to bank operations. These
     // identifiers should be at least a word found in the title of a bank operation related to this
     // bill. It is not case sensitive.
-    identifiers: ['axiome']
+    identifiers: ['axiome'],
+    contentType: 'application/pdf'
   })
 }
 
