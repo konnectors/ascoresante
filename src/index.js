@@ -142,7 +142,7 @@ function parseDetails(page) {
       attr: 'href'
     }
   })
-  detailsData.fileUrl = pdf.fileUrl
+  if (pdf.fileUrl) detailsData.fileUrl = pdf.fileUrl
 
   log('debug', 'Reimbursements details:')
   log('debug', detailsData)
