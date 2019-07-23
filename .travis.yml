@@ -3,10 +3,12 @@ node_js:
 - '8'
 env:
   global:
-  - GH_USER_EMAIL="travis@example.org"
-  - GH_USER_NAME="cozy-bot"
+  - MATTERMOST_CHANNEL=teamconnecteurs
   - DEPLOY_REPOSITORY="git@github.com:konnectors/ascoresante.git"
+  # REGISTRY_TOKEN(editor=cozy, app=ecoledirecte)
   - secure: c6FyvonDlWewpcpeYps8wbTLVNU2lBOVWLB9pCSIXBBd4/KCGe8hpDFf4Rl1YveK5y4XGKYdbOw9+d3mU8XW8Cj5sIYJyNc3lEEZ3mVLIhndh5Z9etANTOKRyrz18zrH5FI5atsqbXMH7czziShZhixmJXIRaIWawyqTq6/qzduk7kGNKmkKs5dVHSUKXd5T30Uxv3EGkQLL0xiWiYub4iu7XvQ21yIB/Ty3EDfFhEoVUDcGZTKy8E81LyYB+v/StFFlQeDbW9ILVTrMgOoU6wLfIIUW8VwlIzoFdr7lwPw/UBGUuoHYH0Qp/Hc+E5HpDutHFARAdudybdLbnAfY4GYHXx3sdT3Yxs5/dW4UzHLX6DDION+Q5d2TaO2KCY6ndYPq+Hl0BDKgyzifNDROxzE+Rh8cfYMVyrnEtqVIEsfajG5vJddp39spobBFW7FcBnCiUfNtxj+T848tVBUE35r3Zc+tHMsl2x1qt0n9PKN+IhOaVn0jYf84Ll1zJUbMVKL/EhhbGMCJbaQ4ola4E3e6SDS5eaVoJe9x5m42qS/v1GHpo6jJ9SujUmMXbr744UOPfods1+LfSfs27kkmklKkM9vosjLbbtNO/AofrbHU8hBHdpm+fM5sLO2z06O6PzbXY3AFnnQnn1UyACNQBaeI3oubnZJCuePgpacXB1Y=
+  # MATTERMOST_HOOK_URL
+  - secure: P9AjcfAGo2fbKaNaUmhFW3ZwDbHpYXiyoBYCjvzJWYLOfS/yeIXjtePckjhzgteLjnytCXqPdLHcx/dGmkRFsEFbZVb5rYE+WCO8OOMOExwLh3ezj5xNOqtHSHDGg395CZn1FaKNJY48XSLTRJs6NfEdF+pqDM9A7RVb1iYTmf8D+8wnRCob5tz77ouefWQ149zXpN2HobM7fkxuW7E8ZqXAgp+5R73uHPaHHhnUNZhQ+sfRWVuWiaeE+tG5/L+GJugYxR9jydofR2WHHYeNyVOXK8kAOKI1RdndwQFa3YPXP8HH3KSHxa/NCt13OfN0ImLcCoYsmgqDRI+7BK7XzOpvPhj/gqQXJOuIR8hCGc2hr9WnxqkGPdGNIvwCKbzQXra+SwdvkrOJbvJPI31+554roVhwS8vHf9d/LwI/Tjl50il2KBiEBWdiARk7zE0McuYs4YEHBpyUmGLBzBkQDpk+v09edFNVo/2HA/+AdCUbH4/vwxFwast25IIEqz+lhkGlyX7+cUicjMAlAFdJkEN+SW7mO7nX9iyA0d52Z2nG7wotLnJkjRnCzuU+dJLESMfScOSsYpper9L4JTPAxxObvRpBXkU+Rt4TNj+fCY9j2j7gXGRBBXiWzYxcOJdI61bgP5K2gVcGRNf1lF4/hoLsdzrPT86sZghosNTvloc=
 cache:
   yarn: true
   directories:
@@ -18,7 +20,7 @@ branches:
 script:
 - yarn lint
 - yarn build
-- yarn run check
+# - yarn run check
 deploy:
 - provider: script
   skip-cleanup: true
@@ -27,7 +29,7 @@ deploy:
     branch: master
 - provider: script
   skip-cleanup: true
-  script: DEPLOY_BRANCH=build yarn deploy && yarn cozyPublish
+  script: DEPLOY_BRANCH=build yarn deploy && yarn cozyPublish --postpublish mattermost
   on:
     tags: true
 before_install:
