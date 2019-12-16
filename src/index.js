@@ -20,7 +20,7 @@ const request = requestFactory({
 })
 const formatDate = require('date-fns/format')
 
-const baseUrl = 'https://ascoregestion.com/assure'
+const baseUrl = 'https://www.ascoregestion.com/assure'
 const decomptesUrl = `${baseUrl}/remboursements`
 
 module.exports = new BaseKonnector(start)
